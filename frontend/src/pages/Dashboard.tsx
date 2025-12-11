@@ -8,22 +8,31 @@ import { supabase } from '../lib/supabase';
 export const Dashboard = () => {
     const [scoreData, setScoreData] = useState<any>(null);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
 
+    const API_URL = import.meta.env.VITE_API_URL || 'https://financescore-api.vercel.app/api';
+
     async function fetchScore() {
-        // setLoading(true); // Don't block full UI on refresh
+        setLoading(true);
         const { data: { session } } = await supabase.auth.getSession();
-        if (!session) return;
+        if (!session) {
+            setLoading(false);
+            return;
+        }
 
         try {
-            // Using relative path for Vercel proxy
-            const res = await fetch(`/api/finance/score?companyId=${session.user.id}`);
+            const res = await fetch(`${API_URL}/finance/score?companyId=${session.user.id}`);
             if (res.ok) {
                 const data = await res.json();
                 setScoreData(data);
+                setError('');
+            } else {
+                setError('Falha ao carregar dados.');
             }
         } catch (error) {
             console.error('Error fetching score:', error);
+            setError('Erro de conexão com o servidor.');
         } finally {
             setLoading(false);
         }
@@ -41,11 +50,14 @@ export const Dashboard = () => {
         );
     }
 
+    // Default empty data to prevent crash if backend returns null
+    const safeScore = scoreData || { overallScore: 0, components: {}, insights: [] };
+
     const cards = scoreData ? [
-        { title: 'Liquidez (Caixa)', value: scoreData.components.liquidity, icon: DollarSign, color: 'text-blue-400' },
-        { title: 'Lucratividade', value: scoreData.components.profitability, icon: TrendingUp, color: 'text-green-400' },
-        { title: 'Operacional', value: scoreData.components.operational, icon: Activity, color: 'text-purple-400' },
-        { title: 'Risco Fiscal', value: scoreData.components.taxRisk, icon: AlertTriangle, color: 'text-yellow-400' },
+        { title: 'Liquidez (Caixa)', value: safeScore.components.liquidity || 0, icon: DollarSign, color: 'text-blue-400' },
+        { title: 'Lucratividade', value: safeScore.components.profitability || 0, icon: TrendingUp, color: 'text-green-400' },
+        { title: 'Operacional', value: safeScore.components.operational || 0, icon: Activity, color: 'text-purple-400' },
+        { title: 'Risco Fiscal', value: safeScore.components.taxRisk || 0, icon: AlertTriangle, color: 'text-yellow-400' },
     ] : [];
 
     return (
@@ -77,14 +89,20 @@ export const Dashboard = () => {
                 </div>
             </header>
 
-            <main className="grid grid-cols-1lg:grid-cols-3 gap-8 max-w-7xl mx-auto">
+            {error && (
+                <div className="p-4 mb-4 bg-red-500/20 border border-red-500/50 rounded-xl text-red-200 text-center">
+                    {error} <button onClick={fetchScore} className="underline ml-2">Tentar novamente</button>
+                </div>
+            )}
+
+            <main className="grid grid-cols-1 lg:grid-cols-3 gap-8 max-w-7xl mx-auto">
                 {/* Main Score Column */}
                 <div className="col-span-1 lg:col-span-1 flex flex-col items-center justify-center bg-slate-900/50 p-8 rounded-3xl border border-white/5 relative overflow-hidden group">
                     <div className="absolute inset-0 bg-indigo-500/10 opacity-0 group-hover:opacity-100 transition duration-700 blur-3xl pointer-events-none" />
-                    <ScoreGauge score={scoreData.overallScore} />
+                    <ScoreGauge score={safeScore.overallScore || 0} />
 
                     <div className="mt-8 space-y-3 w-full">
-                        {scoreData.insights.map((msg: string, i: number) => (
+                        {safeScore.insights?.map((msg: string, i: number) => (
                             <motion.div
                                 key={i}
                                 initial={{ opacity: 0, x: -20 }}

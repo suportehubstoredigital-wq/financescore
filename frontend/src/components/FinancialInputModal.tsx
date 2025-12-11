@@ -31,10 +31,11 @@ export function FinancialInputModal({ isOpen, onClose, onSuccess }: ModalProps) 
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) return;
 
-        // We use the VITE_API_URL or relative /api
-        // Assuming relative path for Vercel
+        // Use VITE_API_URL or fallback
+        const API_URL = import.meta.env.VITE_API_URL || 'https://financescore-api.vercel.app/api';
+
         try {
-            const res = await fetch(`/api/finance/financials?companyId=${session.user.id}`);
+            const res = await fetch(`${API_URL}/finance/financials?companyId=${session.user.id}`);
             if (res.ok) {
                 const data = await res.json();
                 if (data) {
@@ -68,7 +69,8 @@ export function FinancialInputModal({ isOpen, onClose, onSuccess }: ModalProps) 
                 overdueDebts: Number(formData.overdueDebts || 0)
             };
 
-            const res = await fetch(`/api/finance/financials?companyId=${session.user.id}`, {
+            const API_URL = import.meta.env.VITE_API_URL || 'https://financescore-api.vercel.app/api';
+            const res = await fetch(`${API_URL}/finance/financials?companyId=${session.user.id}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
