@@ -1,4 +1,5 @@
-import { Controller, Get, Query, UseGuards, Request } from '@nestjs/common';
+import { Controller, Get, Put, Query, Body, UseGuards, Request } from '@nestjs/common';
+import { UpdateFinancialsDto } from './dto/update-financials.dto';
 import { FinanceService } from './finance.service';
 
 @Controller('finance')
@@ -24,4 +25,15 @@ export class FinanceController {
             message: 'Você pode gastar até R$ 15.400 sem comprometer o caixa de 30 dias.'
         };
     }
+
+    @Get('financials')
+    async getFinancials(@Query('companyId') companyId: string) {
+        return this.financeService.getFinancials(companyId || 'mock-id');
+    }
+
+    @Put('financials')
+    async updateFinancials(@Query('companyId') companyId: string, @Body() body: UpdateFinancialsDto) {
+        return this.financeService.updateFinancials(companyId || 'mock-id', body);
+    }
 }
+

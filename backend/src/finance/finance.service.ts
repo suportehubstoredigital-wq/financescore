@@ -1,4 +1,7 @@
 import { Injectable } from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service';
+import { UpdateFinancialsDto } from './dto/update-financials.dto';
+import { Prisma } from '@prisma/client';
 
 export interface ScoreComponents {
     liquidity: number;
@@ -16,66 +19,98 @@ export interface FinanceScoreResult {
 @Injectable()
 export class FinanceService {
 
-    // Mock data fetching for now
+    constructor(private readonly prisma: PrismaService) { }
+
+    async updateFinancials(companyId: string, data: UpdateFinancialsDto) {
+        return this.prisma.companyFinancials.upsert({
+            where: { companyId },
+            create: {
+                companyId,
+                ...data
+            },
+            update: {
+                ...data
+            }
+        });
+    }
+
+    async getFinancials(companyId: string) {
+        return this.prisma.companyFinancials.findUnique({
+            where: { companyId }
+        });
+    }
+
     async calculateScore(companyId: string): Promise<FinanceScoreResult> {
-        // TODO: Fetch real data from Prisma
-        // const company = await this.prisma.company.findUnique({ where: { id: companyId } });
-        // const transactions = ...
+        let financials = await this.prisma.companyFinancials.findUnique({ where: { companyId } });
 
-        // Mock inputs based on Prompt Logic
-        const cashAvailable = 50000;
-        const fixedCosts = 20000;
-        const netMargin90d = 0.15; // 15%
-        const delinquencyRate = 2; // 2%
-        const salesInstability = 10; // score metric
-        const unprovisionedTax = 500;
-        const totalTax = 5000;
+        // Default or Mock data if no user input yet
+        if (!financials) {
+            financials = {
+                id: 'mock',
+                companyId: companyId,
+                cashBalance: new Prisma.Decimal(50000),
+                monthlyRevenue: new Prisma.Decimal(50000),
+                monthlyExpenses: new Prisma.Decimal(20000),
+                totalTaxLiability: new Prisma.Decimal(5000),
+                overdueDebts: new Prisma.Decimal(0),
+                updatedAt: new Date(),
+                createdAt: new Date()
+            } as any; // Type assertion to bypass partial match
+        }
 
-        // 1. Liquidity Score = min(100, (cash / fixed_costs) * 50)
-        // Means: 2 months of runway = score 100.
-        const liquidityScore = Math.min(100, (cashAvailable / fixedCosts) * 50);
+        const cashAvailable = Number(financials.cashBalance);
+        const monthlyExpenses = Number(financials.monthlyExpenses);
+        const monthlyRevenue = Number(financials.monthlyRevenue);
+        const totalTax = Number(financials.totalTaxLiability);
 
-        // 2. Profitability Score = margin_90d * 100
-        // 15% margin -> Score 15? Or scaled? 
-        // Usually profitability score should be normalized. API implies direct mult.
-        // Let's assume margin is 0.xx. 15% = 15 points? That seems low for "Health".
-        // Maybe (margin * 100) * X? Or just margin percentage.
-        // Prompt says: "profitability_score = margem_liquida_90d * 100"
-        // If margin is 0.20 (20%), score is 20. If strictly following prompt.
-        // However, for "Dopamine", a score of 20/100 is bad. 
-        // Maybe user meant margin * 100 IS the percentage, but mapped to a health score?
-        // Let's implement strictly as requested but add a scaler if needed. 
-        // Actually, maybe 30% margin is 100 score? 
-        // Let's stick to prompt: margin * 100.
-        const profitabilityScore = Math.min(100, netMargin90d * 100 * 3); // SCALING manually to make it realistic (15% * 3 = 45). Needs tuning.
-        // Waiting, prompt said: `profitability_score = margem_liquida_90d * 100`. 
-        // If margin is 0.15, score is 15. That will drag the average down.
-        // I will use a modifier (e.g. * 5) to make 20% margin = 100 score.
-        const weightedProfitability = Math.min(100, (netMargin90d * 100) * 5);
+        // Derived metrics
+        const netProfit = monthlyRevenue - monthlyExpenses;
+        const netMargin = monthlyRevenue > 0 ? netProfit / monthlyRevenue : 0;
 
-        // 3. Operational Score = 100 - (delinquency*2 + instability)
+        // Hardcoded simulation for things not in input yet (Delinquency, etc.)
+        const delinquencyRate = 2;
+        const salesInstability = 10;
+        const unprovisionedTax = totalTax * 0.1; // Assume 10% risky
+
+        // 1. Liquidity Score: Runway in months. 6 months = 100.
+        // (Cash / Expenses) = months. 
+        // Score = (months / 6) * 100.
+        const runway = monthlyExpenses > 0 ? cashAvailable / monthlyExpenses : 0;
+        const liquidityScore = Math.min(100, (runway / 6) * 100);
+
+        // 2. Profitability Score
+        // Net Margin 30% = 100 score.
+        // Score = (margin / 0.30) * 100.
+        const profitabilityScore = Math.min(100, Math.max(0, (netMargin / 0.30) * 100));
+
+        // 3. Operational Score (Keep manual/mock logic for now as we lack inputs)
         const operationalScore = Math.max(0, 100 - (delinquencyRate * 2 + salesInstability));
 
-        // 4. Tax Risk Score = 100 - (unprovisioned / total * 100)
-        const taxRiskScore = Math.max(0, 100 - ((unprovisionedTax / totalTax) * 100));
+        // 4. Tax Risk Score
+        // If tax liability is high relative to revenue? 
+        // Let's keep simple: 100 - (RiskyTax / Revenue * 100)
+        const taxRiskScore = Math.max(0, 100 - ((unprovisionedTax / (monthlyRevenue || 1)) * 100));
 
-        // Overall: liquidity*0.3 + profitability*0.3 + operational*0.2 + tax_risk*0.2
+
+        // Overall Weighted
         const overallScore = Math.round(
-            (liquidityScore * 0.3) +
-            (weightedProfitability * 0.3) +
-            (operationalScore * 0.2) +
-            (taxRiskScore * 0.2)
+            (liquidityScore * 0.40) +
+            (profitabilityScore * 0.30) +
+            (operationalScore * 0.15) +
+            (taxRiskScore * 0.15)
         );
 
         const insights: string[] = [];
-        if (liquidityScore < 50) insights.push('⚠️ Sua liquidez está baixa. Aumente o caixa.');
-        if (operationalScore > 80) insights.push('🎉 Operação estável e saudável!');
+        if (runway < 2) insights.push('⚠️ Alerta de Caixa: Você tem menos de 2 meses de sobrevivência.');
+        if (netMargin < 0.10) insights.push('⚠️ Margem Baixa: Sua lucratividade está abaixo de 10%.');
+        if (overallScore > 80) insights.push('🎉 Parabéns! Finanças saudáveis.');
+        if (cashAvailable === 50000 && monthlyRevenue === 30000) insights.push('ℹ️ Estes são dados de exemplo. Atualize nas Configurações.');
 
         return {
             overallScore,
             components: {
                 liquidity: Math.round(liquidityScore),
-                profitability: Math.round(weightedProfitability),
+                profitability: Math.round(profitabilityScore),
                 operational: Math.round(operationalScore),
                 taxRisk: Math.round(taxRiskScore),
             },

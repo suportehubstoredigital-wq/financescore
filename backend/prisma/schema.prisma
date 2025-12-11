@@ -50,11 +50,26 @@ model Company {
   subscription   Subscription?
   transactions   Transaction[]
   scoreMetrics   ScoreMetric[]
+  financials     CompanyFinancials?
   snapshots      BalanceSnapshot[]
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
 
   @@map("companies")
+}
+
+model CompanyFinancials {
+  id                String   @id @default(uuid())
+  companyId         String   @unique
+  company           Company  @relation(fields: [companyId], references: [id])
+  cashBalance       Decimal  @db.Decimal(15, 2)
+  monthlyRevenue    Decimal  @db.Decimal(15, 2)
+  monthlyExpenses   Decimal  @db.Decimal(15, 2)
+  totalTaxLiability Decimal  @db.Decimal(15, 2)
+  overdueDebts      Decimal  @db.Decimal(15, 2) @default(0)
+  updatedAt         DateTime @updatedAt
+
+  @@map("company_financials")
 }
 
 model Subscription {

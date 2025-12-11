@@ -1,30 +1,36 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { ScoreGauge } from '../components/ScoreGauge';
-import { TrendingUp, DollarSign, Activity, AlertTriangle, Lock } from 'lucide-react';
+import { FinancialInputModal } from '../components/FinancialInputModal';
+import { TrendingUp, DollarSign, Activity, AlertTriangle, Lock, Settings } from 'lucide-react';
+import { supabase } from '../lib/supabase';
 
 export const Dashboard = () => {
     const [scoreData, setScoreData] = useState<any>(null);
     const [loading, setLoading] = useState(true);
+    const [isModalOpen, setIsModalOpen] = useState(false);
+
+    async function fetchScore() {
+        // setLoading(true); // Don't block full UI on refresh
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) return;
+
+        try {
+            // Using relative path for Vercel proxy
+            const res = await fetch(`/api/finance/score?companyId=${session.user.id}`);
+            if (res.ok) {
+                const data = await res.json();
+                setScoreData(data);
+            }
+        } catch (error) {
+            console.error('Error fetching score:', error);
+        } finally {
+            setLoading(false);
+        }
+    }
 
     useEffect(() => {
-        // Mock fetch
-        setTimeout(() => {
-            setScoreData({
-                overallScore: 78,
-                components: {
-                    liquidity: 65,
-                    profitability: 85,
-                    operational: 90,
-                    taxRisk: 72
-                },
-                insights: [
-                    "🎉 Margem de lucro aumentou 2% este mês!",
-                    "⚠️ Liquidez abaixo do recomendado."
-                ]
-            });
-            setLoading(false);
-        }, 1500);
+        fetchScore();
     }, []);
 
     if (loading) {
@@ -35,15 +41,21 @@ export const Dashboard = () => {
         );
     }
 
-    const cards = [
+    const cards = scoreData ? [
         { title: 'Liquidez (Caixa)', value: scoreData.components.liquidity, icon: DollarSign, color: 'text-blue-400' },
         { title: 'Lucratividade', value: scoreData.components.profitability, icon: TrendingUp, color: 'text-green-400' },
         { title: 'Operacional', value: scoreData.components.operational, icon: Activity, color: 'text-purple-400' },
         { title: 'Risco Fiscal', value: scoreData.components.taxRisk, icon: AlertTriangle, color: 'text-yellow-400' },
-    ];
+    ] : [];
 
     return (
         <div className="min-h-screen bg-slate-950 text-white p-8 font-sans selection:bg-indigo-500/30">
+            <FinancialInputModal
+                isOpen={isModalOpen}
+                onClose={() => setIsModalOpen(false)}
+                onSuccess={fetchScore}
+            />
+
             <header className="flex justify-between items-center mb-12">
                 <div>
                     <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 to-cyan-400">
@@ -52,10 +64,16 @@ export const Dashboard = () => {
                     <p className="text-slate-400">Saúde financeira em tempo real</p>
                 </div>
                 <div className="flex gap-4">
-                    <button className="px-4 py-2 bg-white/5 hover:bg-white/10 rounded-lg border border-white/10 transition">
+                    <button
+                        onClick={() => setIsModalOpen(true)}
+                        className="px-4 py-2 bg-white/5 hover:bg-white/10 rounded-lg border border-white/10 transition flex items-center gap-2 group"
+                    >
+                        <Settings size={18} className="group-hover:rotate-90 transition-transform duration-500" />
                         Configurações
                     </button>
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500" />
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center font-bold text-sm">
+                        FS
+                    </div>
                 </div>
             </header>
 
