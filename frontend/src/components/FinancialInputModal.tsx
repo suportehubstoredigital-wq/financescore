@@ -27,12 +27,12 @@ export function FinancialInputModal({ isOpen, onClose, onSuccess }: ModalProps) 
     }, [isOpen]);
 
     async function loadData() {
-        // Fetch current financials
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) return;
 
-        // Use VITE_API_URL or fallback
-        const API_URL = import.meta.env.VITE_API_URL || 'https://financescore-api.vercel.app/api';
+        // Dynamic URL Strategy
+        const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+        const API_URL = import.meta.env.VITE_API_URL || (isLocal ? 'http://localhost:3000/api' : '/api');
 
         try {
             const res = await fetch(`${API_URL}/finance/financials?companyId=${session.user.id}`);
@@ -69,7 +69,9 @@ export function FinancialInputModal({ isOpen, onClose, onSuccess }: ModalProps) 
                 overdueDebts: Number(formData.overdueDebts || 0)
             };
 
-            const API_URL = import.meta.env.VITE_API_URL || 'https://financescore-api.vercel.app/api';
+            const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+            const API_URL = import.meta.env.VITE_API_URL || (isLocal ? 'http://localhost:3000/api' : '/api');
+
             const res = await fetch(`${API_URL}/finance/financials?companyId=${session.user.id}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },

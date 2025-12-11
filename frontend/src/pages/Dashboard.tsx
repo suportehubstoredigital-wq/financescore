@@ -11,7 +11,12 @@ export const Dashboard = () => {
     const [error, setError] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
 
-    const API_URL = import.meta.env.VITE_API_URL || 'https://financescore-api.vercel.app/api';
+    // Dynamic URL Strategy: 
+    // 1. Env Var (Priority)
+    // 2. Localhost (Dev fallback)
+    // 3. Relative '/api' (Production Monorepo - No CORS needed)
+    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    const API_URL = import.meta.env.VITE_API_URL || (isLocal ? 'http://localhost:3000/api' : '/api');
 
     async function fetchScore() {
         setLoading(true);
