@@ -58,10 +58,10 @@ export class FinanceService {
             } as any; // Type assertion to bypass partial match
         }
 
-        const cashAvailable = Number(financials.cashBalance);
-        const monthlyExpenses = Number(financials.monthlyExpenses);
-        const monthlyRevenue = Number(financials.monthlyRevenue);
-        const totalTax = Number(financials.totalTaxLiability);
+        const cashAvailable = Number(financials!.cashBalance);
+        const monthlyExpenses = Number(financials!.monthlyExpenses);
+        const monthlyRevenue = Number(financials!.monthlyRevenue);
+        const totalTax = Number(financials!.totalTaxLiability);
 
         // Derived metrics
         const netProfit = monthlyRevenue - monthlyExpenses;
