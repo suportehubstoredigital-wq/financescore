@@ -27,30 +27,69 @@ const kpiVariants = {
     })
 };
 
+import { supabase } from "@/lib/supabase";
+import { useState, useEffect } from "react";
+
+// ... existing imports ...
+
 export function DashboardPage() {
+    const [metrics, setMetrics] = useState({
+        totalCompanies: 0,
+        avgScore: 0,
+        loading: true
+    });
+
+    useEffect(() => {
+        async function fetchMetrics() {
+            try {
+                // Count companies
+                const { count: companiesCount, error: companiesError } = await supabase
+                    .from('companies')
+                    .select('*', { count: 'exact', head: true });
+
+                // Get scores for average (mocking "Revenue" based on score for now/randomness or just strict score)
+                // Since user asked for "license ready", we should be honest but plausible.
+                // We'll calculate average score from local mock logic if not in DB, but better to query.
+                // Since 'features' are limited, we'll fetch what we have.
+                const { data: scoresData } = await supabase.from('score_metrics').select('overall');
+
+                const totalScore = scoresData?.reduce((acc, curr) => acc + (Number(curr.overall) || 0), 0) || 0;
+                const avgScore = scoresData?.length ? Math.round(totalScore / scoresData.length) : 0;
+
+                setMetrics({
+                    totalCompanies: companiesCount || 0,
+                    avgScore: avgScore || 0, // Fallback to 0 if no data
+                    loading: false
+                });
+
+            } catch (error) {
+                console.error("Error fetching dashboard metrics:", error);
+                setMetrics(prev => ({ ...prev, loading: false }));
+            }
+        }
+        fetchMetrics();
+    }, []);
+
+    const kpiData = [
+        { title: "Receita Total", value: "R$ 0,00", delta: "+0%", icon: DollarSign, color: "text-blue-600" }, // Revenue not in DB yet
+        { title: "Empresas Ativas", value: metrics.totalCompanies.toString(), delta: "+0", icon: Users, color: "text-indigo-600" },
+        { title: "Score Médio", value: metrics.avgScore.toString(), delta: "+0pts", icon: Activity, color: "text-green-600" },
+        { title: "Liquidez Corrente", value: "0", delta: "0", icon: TrendingUp, color: "text-purple-600" }
+    ];
+
+    // If we have stats, we update the array. 
+    // Ideally we'd use state for the array but this map is inside render.
+    // Let's replace the hardcoded array map with this one.
+
     return (
         <PageContainer>
-            <div className="flex justify-between items-center mb-6">
-                <div>
-                    <h1 className="text-3xl font-bold tracking-tighter sm:text-4xl md:text-5xl bg-gradient-to-r from-slate-900 to-slate-700 bg-clip-text text-transparent">
-                        Dashboard
-                    </h1>
-                    <p className="text-muted-foreground mt-2">Visão geral do desempenho financeiro.</p>
-                </div>
-                <div className="bg-green-100 text-green-700 px-4 py-2 rounded-full text-sm font-medium flex items-center gap-2">
-                    <TrendingUp className="h-4 w-4" />
-                    <span>Saúde Financeira: Ótima</span>
-                </div>
-            </div>
+            {/* ... header ... */}
 
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-                {[
-                    { title: "Receita Total", value: "R$ 45.231,89", delta: "+20.1%", icon: DollarSign, color: "text-blue-600" },
-                    { title: "Empresas Ativas", value: "12", delta: "+2", icon: Users, color: "text-indigo-600" },
-                    { title: "Score Médio", value: "847", delta: "+15pts", icon: Activity, color: "text-green-600" },
-                    { title: "Liquidez Corrente", value: "1.2", delta: "-0.1", icon: TrendingUp, color: "text-purple-600" }
-                ].map((kpi, i) => (
+                {kpiData.map((kpi, i) => (
                     <motion.div
+                        // ... existing motion props ...
+
                         key={i}
                         custom={i}
                         initial="hidden"

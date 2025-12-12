@@ -6,8 +6,12 @@ import { Plus, MoreHorizontal, FileText, Activity } from "lucide-react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 
+import { CreateCompanyModal } from "@/components/CreateCompanyModal";
+import { useState } from "react";
+
 export function CompaniesPage() {
-    const { companies, loading } = useCompanies();
+    const { companies, loading, refresh } = useCompanies();
+    const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
     return (
         <PageContainer>
@@ -16,11 +20,17 @@ export function CompaniesPage() {
                     <h1 className="text-3xl font-bold tracking-tight text-slate-900">Empresas</h1>
                     <p className="text-muted-foreground">Gerencie sua carteira de clientes.</p>
                 </div>
-                <Button className="gap-2">
+                <Button className="gap-2" onClick={() => setIsCreateModalOpen(true)}>
                     <Plus className="h-4 w-4" />
                     Nova Empresa
                 </Button>
             </div>
+
+            <CreateCompanyModal
+                isOpen={isCreateModalOpen}
+                onClose={() => setIsCreateModalOpen(false)}
+                onSuccess={refresh}
+            />
 
             <Card className="border-slate-200 shadow-sm">
                 <CardHeader>
