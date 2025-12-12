@@ -31,7 +31,7 @@ export function useCompanies() {
 
                 if (data) {
                     // Transform data to match UI needs (mocking missing columns for now as DB is simple)
-                    const transformed = data.map(c => ({
+                    const transformed = data.map((c: any) => ({
                         ...c,
                         cnpj: '00.000.000/0001-00', // Placeholder as DB schema was simple
                         status: 'active' as const,

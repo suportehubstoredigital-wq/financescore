@@ -78,7 +78,7 @@ export function CompaniesPage() {
                                                     <div className="h-1.5 w-16 bg-slate-100 rounded-full overflow-hidden">
                                                         <div
                                                             className="h-full bg-blue-500 rounded-full"
-                                                            style={{ width: `${(company.lastScore / 1000) * 100}%` }}
+                                                            style={{ width: `${((company.lastScore || 0) / 1000) * 100}%` }}
                                                         />
                                                     </div>
                                                     <span className="font-bold text-slate-700">{company.lastScore}</span>
