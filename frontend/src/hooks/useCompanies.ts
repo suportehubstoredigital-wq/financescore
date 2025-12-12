@@ -29,14 +29,31 @@ export function useCompanies() {
             }
 
             if (data) {
-                // Transform data to match UI needs (mocking missing columns for now as DB is simple)
-                const transformed = data.map((c: any) => ({
-                    ...c,
-                    cnpj: '00.000.000/0001-00', // Placeholder as DB schema was simple
-                    status: 'active' as const,
-                    lastScore: Math.floor(Math.random() * 300) + 600 // Mock score until we join with score_metrics
+                // Fetch latest score for each company to show in list
+                // This is a bit N+1 but for a small list it's fine. Ideally use a view or join.
+                // For now, we will just fetch the companies. Score calculation is complex.
+                // We'll trust the KV store or similar if we had one.
+                // Let's at least map the fields correctly.
+                const companiesWithScores = await Promise.all(data.map(async (c: any) => {
+                    const { data: scoreData } = await supabase
+                        .from('score_metrics')
+                        .select('overall')
+                        .eq('company_id', c.id)
+                        .order('created_at', { ascending: false })
+                        .limit(1)
+                        .single();
+
+                    return {
+                        id: c.id,
+                        name: c.name,
+                        cnpj: c.cnpj || 'Não informado',
+                        status: c.status || 'active',
+                        lastScore: scoreData?.overall ? Number(scoreData.overall) : undefined,
+                        created_at: c.created_at
+                    };
                 }));
-                setCompanies(transformed);
+
+                setCompanies(companiesWithScores);
             }
         } catch (err) {
             console.error('Unexpected error:', err);

@@ -11,22 +11,33 @@ interface CreateCompanyModalProps {
 }
 
 export function CreateCompanyModal({ isOpen, onClose, onSuccess }: CreateCompanyModalProps) {
-    const [name, setName] = useState('');
+    const [formData, setFormData] = useState({
+        name: '',
+        cnpj: '',
+        phone: '',
+        email: ''
+    });
     const [loading, setLoading] = useState(false);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!name.trim()) return;
+        if (!formData.name.trim()) return;
 
         setLoading(true);
         try {
             const { error } = await supabase
                 .from('companies')
-                .insert([{ name }]);
+                .insert([{
+                    name: formData.name,
+                    cnpj: formData.cnpj,
+                    phone: formData.phone,
+                    email: formData.email,
+                    status: 'active'
+                }]);
 
             if (error) throw error;
 
-            setName('');
+            setFormData({ name: '', cnpj: '', phone: '', email: '' });
             onSuccess();
             onClose();
         } catch (error) {
@@ -67,10 +78,43 @@ export function CreateCompanyModal({ isOpen, onClose, onSuccess }: CreateCompany
                                     <label className="block text-sm font-medium text-slate-700 mb-1">Nome da Empresa</label>
                                     <input
                                         type="text"
+                                        required
                                         autoFocus
-                                        value={name}
-                                        onChange={(e) => setName(e.target.value)}
+                                        value={formData.name}
+                                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                                         placeholder="Ex: Mercadinho do Zé"
+                                        className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all"
+                                    />
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-700 mb-1">CNPJ</label>
+                                        <input
+                                            type="text"
+                                            value={formData.cnpj}
+                                            onChange={(e) => setFormData({ ...formData, cnpj: e.target.value })}
+                                            placeholder="00.000.000/0000-00"
+                                            className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-700 mb-1">Telefone</label>
+                                        <input
+                                            type="text"
+                                            value={formData.phone}
+                                            onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                                            placeholder="(00) 00000-0000"
+                                            className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all"
+                                        />
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
+                                    <input
+                                        type="email"
+                                        value={formData.email}
+                                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                                        placeholder="contato@empresa.com"
                                         className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all"
                                     />
                                 </div>
@@ -78,7 +122,7 @@ export function CreateCompanyModal({ isOpen, onClose, onSuccess }: CreateCompany
                                     <Button type="button" variant="ghost" onClick={onClose}>
                                         Cancelar
                                     </Button>
-                                    <Button type="submit" disabled={loading || !name.trim()} className="min-w-[100px]">
+                                    <Button type="submit" disabled={loading || !formData.name.trim()} className="min-w-[100px]">
                                         {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Criar'}
                                     </Button>
                                 </div>

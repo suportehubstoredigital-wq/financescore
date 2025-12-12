@@ -36,6 +36,7 @@ export function DashboardPage() {
     const [metrics, setMetrics] = useState({
         totalCompanies: 0,
         avgScore: 0,
+        totalRevenue: 0,
         loading: true
     });
 
@@ -51,14 +52,17 @@ export function DashboardPage() {
                 // Since user asked for "license ready", we should be honest but plausible.
                 // We'll calculate average score from local mock logic if not in DB, but better to query.
                 // Since 'features' are limited, we'll fetch what we have.
-                const { data: scoresData } = await supabase.from('score_metrics').select('overall');
+                const { data: scoresData } = await supabase.from('score_metrics').select('overall, revenue');
 
                 const totalScore = scoresData?.reduce((acc: number, curr: any) => acc + (Number(curr.overall) || 0), 0) || 0;
+                const totalRevenue = scoresData?.reduce((acc: number, curr: any) => acc + (Number(curr.revenue) || 0), 0) || 0;
                 const avgScore = scoresData?.length ? Math.round(totalScore / scoresData.length) : 0;
+
 
                 setMetrics({
                     totalCompanies: companiesCount || 0,
                     avgScore: avgScore || 0, // Fallback to 0 if no data
+                    totalRevenue: totalRevenue || 0,
                     loading: false
                 });
 
@@ -71,7 +75,7 @@ export function DashboardPage() {
     }, []);
 
     const kpiData = [
-        { title: "Receita Total", value: "R$ 0,00", delta: "+0%", icon: DollarSign, color: "text-blue-600" }, // Revenue not in DB yet
+        { title: "Receita Total", value: metrics.totalRevenue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }), delta: "+0%", icon: DollarSign, color: "text-blue-600" },
         { title: "Empresas Ativas", value: metrics.totalCompanies.toString(), delta: "+0", icon: Users, color: "text-indigo-600" },
         { title: "Score Médio", value: metrics.avgScore.toString(), delta: "+0pts", icon: Activity, color: "text-green-600" },
         { title: "Liquidez Corrente", value: "0", delta: "0", icon: TrendingUp, color: "text-purple-600" }
@@ -188,7 +192,7 @@ export function DashboardPage() {
                                     animate={{ opacity: 1, scale: 1 }}
                                     transition={{ delay: 1, duration: 0.5 }}
                                 >
-                                    850
+                                    {metrics.avgScore}
                                 </motion.span>
                                 <span className="text-sm text-slate-400 uppercase tracking-widest mt-1">Excelente</span>
                             </div>
