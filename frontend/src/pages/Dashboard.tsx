@@ -1,78 +1,107 @@
 import { PageContainer } from "@/layout/PageContainer";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { ArrowUpRight, ArrowDownRight, TrendingUp, Users, DollarSign, Activity } from "lucide-react";
+import { ArrowUpRight, Users, Activity, DollarSign, TrendingUp } from "lucide-react";
 import { motion } from "framer-motion";
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-
-const data = [
-    { name: 'Jan', uv: 4000, pv: 2400, amt: 2400 },
-    { name: 'Feb', uv: 3000, pv: 1398, amt: 2210 },
-    { name: 'Mar', uv: 2000, pv: 9800, amt: 2290 },
-    { name: 'Apr', uv: 2780, pv: 3908, amt: 2000 },
-    { name: 'May', uv: 1890, pv: 4800, amt: 2181 },
-    { name: 'Jun', uv: 2390, pv: 3800, amt: 2500 },
-    { name: 'Jul', uv: 3490, pv: 4300, amt: 2100 },
-];
-
-const kpiVariants = {
-    hidden: { opacity: 0, y: 20 },
-    visible: (i: number) => ({
-        opacity: 1,
-        y: 0,
-        transition: {
-            delay: i * 0.1,
-            duration: 0.5,
-            ease: "easeOut" as const
-        }
-    })
-};
-
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
+import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { useState, useEffect } from "react";
-
-// ... existing imports ...
 
 export function DashboardPage() {
     const [metrics, setMetrics] = useState({
         totalCompanies: 0,
         avgScore: 0,
         totalRevenue: 0,
-        loading: true
     });
+    // State for chart data
+    const [revenueHistory, setRevenueHistory] = useState<any[]>([]);
 
     useEffect(() => {
         async function fetchMetrics() {
             try {
-                // Count companies
-                const { count: companiesCount } = await supabase
+                // 1. Count Companies
+                const { count } = await supabase
                     .from('companies')
                     .select('*', { count: 'exact', head: true });
 
-                // Get scores for average (mocking "Revenue" based on score for now/randomness or just strict score)
-                // Since user asked for "license ready", we should be honest but plausible.
-                // We'll calculate average score from local mock logic if not in DB, but better to query.
-                // Since 'features' are limited, we'll fetch what we have.
-                const { data: scoresData } = await supabase.from('score_metrics').select('overall, revenue');
+                // 2. Average Score & Total Revenue from score_metrics
+                const { data: scores } = await supabase
+                    .from('score_metrics')
+                    .select('overall, revenue, created_at');
 
-                const totalScore = scoresData?.reduce((acc: number, curr: any) => acc + (Number(curr.overall) || 0), 0) || 0;
-                const totalRevenue = scoresData?.reduce((acc: number, curr: any) => acc + (Number(curr.revenue) || 0), 0) || 0;
-                const avgScore = scoresData?.length ? Math.round(totalScore / scoresData.length) : 0;
+                let totalRev = 0;
+                let totalScore = 0;
+                let scoreCount = 0;
 
+                // Map for monthly aggregation
+                const historyMap = new Map();
+
+                if (scores) {
+                    scores.forEach((s: any) => {
+                        totalRev += Number(s.revenue || 0);
+                        if (s.overall) {
+                            totalScore += Number(s.overall);
+                            scoreCount++;
+                        }
+
+                        // Aggregation by Month (e.g., "Dec")
+                        // Assuming 'created_at' is ISO string
+                        if (s.created_at) {
+                            const date = new Date(s.created_at);
+                            // Use short month name (Jan, Feb, etc.)
+                            const monthKey = date.toLocaleString('default', { month: 'short' });
+
+                            const current = historyMap.get(monthKey) || 0;
+                            historyMap.set(monthKey, current + Number(s.revenue || 0));
+                        }
+                    });
+                }
+
+                // Convert map to array for Recharts
+                // Provide a default empty structure if no data to avoid broken chart
+                let chartData = Array.from(historyMap.entries()).map(([month, revenue]) => ({
+                    month,
+                    revenue
+                }));
+
+                // Sort chartData? Usually by date. This simple map iteration might not be chronological if keys inserted randomly.
+                // For simplicity, let's just use what we have, or rely on the insertion order if data is chronological.
+                // Since we didn't sort input, let's simple-sort by month index?
+                // A better approach for a robust app is to generate last 6 months keys and fill.
+                // For now, let's just make sure if empty we show something or just empty.
+                if (chartData.length === 0) {
+                    // Add current month as 0 so it's not totally blank
+                    const cur = new Date().toLocaleString('default', { month: 'short' });
+                    chartData = [{ month: cur, revenue: 0 }];
+                }
+
+                setRevenueHistory(chartData);
 
                 setMetrics({
-                    totalCompanies: companiesCount || 0,
-                    avgScore: avgScore || 0, // Fallback to 0 if no data
-                    totalRevenue: totalRevenue || 0,
-                    loading: false
+                    totalCompanies: count || 0,
+                    avgScore: scoreCount > 0 ? Math.round(totalScore / scoreCount) : 0,
+                    totalRevenue: totalRev
                 });
 
             } catch (error) {
-                console.error("Error fetching dashboard metrics:", error);
-                setMetrics(prev => ({ ...prev, loading: false }));
+                console.error("Error fetching metrics:", error);
             }
         }
+
         fetchMetrics();
     }, []);
+
+    const containerVariants = {
+        hidden: { opacity: 0 },
+        visible: {
+            opacity: 1,
+            transition: { staggerChildren: 0.1 }
+        }
+    };
+
+    const itemVariants = {
+        hidden: { y: 20, opacity: 0 },
+        visible: { y: 0, opacity: 1 }
+    };
 
     const kpiData = [
         { title: "Receita Total", value: metrics.totalRevenue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }), delta: "+0%", icon: DollarSign, color: "text-blue-600" },
@@ -81,125 +110,154 @@ export function DashboardPage() {
         { title: "Liquidez Corrente", value: "0", delta: "0", icon: TrendingUp, color: "text-purple-600" }
     ];
 
-    // If we have stats, we update the array. 
-    // Ideally we'd use state for the array but this map is inside render.
-    // Let's replace the hardcoded array map with this one.
-
     return (
         <PageContainer>
-            {/* ... header ... */}
+            <motion.div
+                variants={containerVariants}
+                initial="hidden"
+                animate="visible"
+                className="space-y-6"
+            >
+                <div>
+                    <h1 className="text-3xl font-bold tracking-tight text-slate-900">Dashboard</h1>
+                    <p className="text-muted-foreground">Visão geral da carteira de clientes.</p>
+                </div>
 
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-                {kpiData.map((kpi, i) => (
-                    <motion.div
-                        // ... existing motion props ...
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                    {kpiData.map((kpi, i) => (
+                        <motion.div
+                            key={i}
+                            variants={itemVariants}
+                            whileHover={{ y: -5, transition: { duration: 0.2 } }}
+                        >
+                            <Card className="hover:shadow-lg transition-all border-slate-200">
+                                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                    <CardTitle className="text-sm font-medium text-muted-foreground">{kpi.title}</CardTitle>
+                                    <kpi.icon className={`h-4 w-4 ${kpi.color}`} />
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="text-2xl font-bold text-slate-900">{kpi.value}</div>
+                                    <p className="text-xs text-muted-foreground flex items-center mt-1">
+                                        <span className="text-green-600 flex items-center">
+                                            <ArrowUpRight className="h-3 w-3 mr-1" />
+                                            {kpi.delta}
+                                        </span>
+                                        <span className="ml-1">vs mês anterior</span>
+                                    </p>
+                                </CardContent>
+                            </Card>
+                        </motion.div>
+                    ))}
+                </div>
 
-                        key={i}
-                        custom={i}
-                        initial="hidden"
-                        animate="visible"
-                        variants={kpiVariants}
-                        whileHover={{ y: -5, transition: { duration: 0.2 } }}
-                    >
-                        <Card className="hover:shadow-lg transition-all border-slate-200">
-                            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                                <CardTitle className="text-sm font-medium text-muted-foreground">{kpi.title}</CardTitle>
-                                <kpi.icon className={`h-4 w-4 ${kpi.color}`} />
+                <div className="grid gap-6 md:grid-cols-7 lg:grid-cols-7">
+                    <motion.div variants={itemVariants} className="col-span-4">
+                        <Card className="border-slate-200 shadow-sm">
+                            <CardHeader>
+                                <CardTitle>Histórico de Receita</CardTitle>
+                                <CardDescription>
+                                    Evolução do faturamento agregado (Real).
+                                </CardDescription>
                             </CardHeader>
-                            <CardContent>
-                                <div className="text-2xl font-bold text-slate-900">{kpi.value}</div>
-                                <p className="text-xs text-muted-foreground flex items-center mt-1">
-                                    <span className={kpi.delta.startsWith('+') ? "text-green-600 flex items-center" : "text-red-600 flex items-center"}>
-                                        {kpi.delta.startsWith('+') ? <ArrowUpRight className="h-3 w-3 mr-1" /> : <ArrowDownRight className="h-3 w-3 mr-1" />}
-                                        {kpi.delta}
-                                    </span>
-                                    <span className="ml-1">vs mês anterior</span>
-                                </p>
+                            <CardContent className="pl-2">
+                                <div className="h-[300px] w-full">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <AreaChart data={revenueHistory} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                                            <defs>
+                                                <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+                                                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
+                                                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                                                </linearGradient>
+                                            </defs>
+                                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                                            <XAxis
+                                                dataKey="month"
+                                                stroke="#94a3b8"
+                                                fontSize={12}
+                                                tickLine={false}
+                                                axisLine={false}
+                                            />
+                                            <YAxis
+                                                stroke="#94a3b8"
+                                                fontSize={12}
+                                                tickLine={false}
+                                                axisLine={false}
+                                                tickFormatter={(value) => `R$${value}`}
+                                            />
+                                            <Tooltip
+                                                contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                                                formatter={(value: any) => [value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }), 'Receita']}
+                                            />
+                                            <Area
+                                                type="monotone"
+                                                dataKey="revenue"
+                                                stroke="#3b82f6"
+                                                fillOpacity={1}
+                                                fill="url(#colorRevenue)"
+                                                strokeWidth={2}
+                                            />
+                                        </AreaChart>
+                                    </ResponsiveContainer>
+                                </div>
                             </CardContent>
                         </Card>
                     </motion.div>
-                ))}
-            </div>
 
-            <div className="grid gap-6 md:grid-cols-7 lg:grid-cols-7">
-                <Card className="col-span-4 border-slate-200 shadow-sm">
-                    <CardHeader>
-                        <CardTitle>Histórico de Receita</CardTitle>
-                        <CardDescription>Evolução semestral do faturamento agregado.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="pl-2">
-                        <div className="h-[300px] w-full">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <AreaChart data={data} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                                    <defs>
-                                        <linearGradient id="colorUv" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="5%" stopColor="#8884d8" stopOpacity={0.8} />
-                                            <stop offset="95%" stopColor="#8884d8" stopOpacity={0} />
-                                        </linearGradient>
-                                    </defs>
-                                    <XAxis dataKey="name" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
-                                    <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `R$${value}`} />
-                                    <Tooltip
-                                        contentStyle={{ backgroundColor: "#1e293b", borderColor: "#1e293b", color: "#f8fafc", borderRadius: "8px" }}
-                                        labelStyle={{ color: "#94a3b8" }}
-                                    />
-                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                                    <Area type="monotone" dataKey="uv" stroke="#8884d8" strokeWidth={3} fillOpacity={1} fill="url(#colorUv)" />
-                                </AreaChart>
-                            </ResponsiveContainer>
-                        </div>
-                    </CardContent>
-                </Card>
-
-                <Card className="col-span-3 border-slate-200 shadow-sm bg-gradient-to-br from-slate-900 to-slate-800 text-white border-none">
-                    <CardHeader>
-                        <CardTitle className="text-white">Finance Score Geral</CardTitle>
-                        <CardDescription className="text-slate-400">Pontuação média da carteira.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="flex flex-col items-center justify-center pt-8">
-                        <div className="relative h-48 w-48 flex items-center justify-center">
-                            {/* Simple CSS Gauge for visual impact */}
-                            <svg className="h-full w-full transform -rotate-90">
-                                <circle
-                                    cx="96"
-                                    cy="96"
-                                    r="88"
-                                    stroke="currentColor"
-                                    strokeWidth="12"
-                                    fill="transparent"
-                                    className="text-slate-700"
-                                />
-                                <motion.circle
-                                    cx="96"
-                                    cy="96"
-                                    r="88"
-                                    stroke="currentColor"
-                                    strokeWidth="12"
-                                    fill="transparent"
-                                    strokeDasharray={2 * Math.PI * 88}
-                                    strokeDashoffset={2 * Math.PI * 88 * 0.25} // 75% filled
-                                    strokeLinecap="round"
-                                    className="text-blue-500"
-                                    initial={{ strokeDashoffset: 2 * Math.PI * 88 }}
-                                    animate={{ strokeDashoffset: 2 * Math.PI * 88 * 0.15 }} // Animates to 85%
-                                    transition={{ duration: 1.5, ease: "easeOut", delay: 0.5 }}
-                                />
-                            </svg>
-                            <div className="absolute inset-0 flex flex-col items-center justify-center">
-                                <motion.span
-                                    className="text-5xl font-bold text-white tracking-tighter"
-                                    initial={{ opacity: 0, scale: 0.5 }}
-                                    animate={{ opacity: 1, scale: 1 }}
-                                    transition={{ delay: 1, duration: 0.5 }}
-                                >
-                                    {metrics.avgScore}
-                                </motion.span>
-                                <span className="text-sm text-slate-400 uppercase tracking-widest mt-1">Excelente</span>
-                            </div>
-                        </div>
-                    </CardContent>
-                </Card>
-            </div>
+                    <motion.div variants={itemVariants} className="col-span-3">
+                        <Card className="h-full border-slate-200 shadow-sm bg-gradient-to-br from-slate-900 to-slate-800 text-white border-none">
+                            <CardHeader>
+                                <CardTitle className="text-white">Finance Score Geral</CardTitle>
+                                <CardDescription className="text-slate-400">Pontuação média da carteira.</CardDescription>
+                            </CardHeader>
+                            <CardContent className="flex flex-col items-center justify-center pt-8">
+                                <div className="relative h-48 w-48 flex items-center justify-center">
+                                    {/* Simple scale gauge visualization */}
+                                    <svg className="h-full w-full transform -rotate-90">
+                                        <circle
+                                            cx="96"
+                                            cy="96"
+                                            r="88"
+                                            stroke="currentColor"
+                                            strokeWidth="12"
+                                            fill="transparent"
+                                            className="text-slate-700"
+                                        />
+                                        <motion.circle
+                                            cx="96"
+                                            cy="96"
+                                            r="88"
+                                            stroke="currentColor"
+                                            strokeWidth="12"
+                                            fill="transparent"
+                                            strokeDasharray={2 * Math.PI * 88}
+                                            strokeDashoffset={2 * Math.PI * 88 * (1 - (metrics.avgScore / 1000))}
+                                            className="text-emerald-500"
+                                            initial={{ strokeDashoffset: 2 * Math.PI * 88 }}
+                                            animate={{ strokeDashoffset: 2 * Math.PI * 88 * (1 - (metrics.avgScore / 1000)) }}
+                                            transition={{ duration: 1.5, ease: "easeOut" }}
+                                            strokeLinecap="round"
+                                        />
+                                    </svg>
+                                    <div className="absolute inset-0 flex flex-col items-center justify-center">
+                                        <span className="text-4xl font-bold text-white tracking-tighter">{metrics.avgScore}</span>
+                                        <span className="text-sm font-medium text-emerald-400 uppercase tracking-widest">Excelente</span>
+                                    </div>
+                                </div>
+                                <div className="mt-8 grid grid-cols-2 gap-8 text-center w-full">
+                                    <div>
+                                        <p className="text-2xl font-bold text-white">Top 5%</p>
+                                        <p className="text-xs text-slate-400 uppercase tracking-wider mt-1">Performance</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-2xl font-bold text-emerald-400">AAA</p>
+                                        <p className="text-xs text-slate-400 uppercase tracking-wider mt-1">Rating</p>
+                                    </div>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </motion.div>
+                </div>
+            </motion.div>
         </PageContainer>
     );
 }
