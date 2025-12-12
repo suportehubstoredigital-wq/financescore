@@ -43,7 +43,7 @@ export function DashboardPage() {
         async function fetchMetrics() {
             try {
                 // Count companies
-                const { count: companiesCount, error: companiesError } = await supabase
+                const { count: companiesCount } = await supabase
                     .from('companies')
                     .select('*', { count: 'exact', head: true });
 
@@ -53,7 +53,7 @@ export function DashboardPage() {
                 // Since 'features' are limited, we'll fetch what we have.
                 const { data: scoresData } = await supabase.from('score_metrics').select('overall');
 
-                const totalScore = scoresData?.reduce((acc, curr) => acc + (Number(curr.overall) || 0), 0) || 0;
+                const totalScore = scoresData?.reduce((acc: number, curr: any) => acc + (Number(curr.overall) || 0), 0) || 0;
                 const avgScore = scoresData?.length ? Math.round(totalScore / scoresData.length) : 0;
 
                 setMetrics({
